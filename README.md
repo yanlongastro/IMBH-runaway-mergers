@@ -1,1 +1,1 @@
-# Code for studying the seed black hole formation from run-away growth of star clusters
+# Seed BH from run-away growth of star clusters
