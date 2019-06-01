@@ -107,7 +107,7 @@ def mct_single_phy(rho, a, b, rc, t):
     m_mean = 0.376176
     mtot = cdf_phy(rc*1e8, rho, a, b, rc)
     mrc = 4* np.pi * rho*rc**3/(3-a)
-    lnlamb = np.log(0.1 * mtot/m_mean)
+    lnlamb = np.log(0.1 * mtot/2/m_mean)
     tdfc = 3.3/8.0/lnlamb *np.sqrt(rc**3 /G/mrc) *mrc/m_max
     res = 4* np.pi * rho*rc**3
     res *= 0.079486*100**(2-2.3)/0.376176
