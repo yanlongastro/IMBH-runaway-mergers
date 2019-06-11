@@ -82,11 +82,12 @@ for fs in files:
         mass_cls = f[clst]['params'][-2]
         if np.isfinite(f[clst]['params']).all()==False:
             continue
-        #mass_cdf = np.array(f[clst]['cdf'])
-        mass_cdf = np.array(f[clst]['mc_cdf'])
+        mass_cdf = np.array(f[clst]['raw_cdf'])
+        #mass_cdf = np.array(f[clst]['mc_cdf'])
         mass_cdf = np.transpose(mass_cdf)
         mass_cdf[0] = mass_cdf[0]/1.0e3     #pc to kpc
-        mass_cdf[1] = mass_cdf[1]/mass_cls
+        mass_cdf_max = mass_cdf[1][-1]
+        mass_cdf[1] = mass_cdf[1]/mass_cdf_max
         mass_cdf = np.transpose(mass_cdf)
         star_catalog = mc_cy.sample_partial(mass_cls, mass_cdf)
         #r_h = f[clst]['params0'][-1]/1.0e3  #pc to kpc

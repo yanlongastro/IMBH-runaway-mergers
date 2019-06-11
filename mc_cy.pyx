@@ -36,13 +36,15 @@ cdef double radius(double [:, ::1] mass_cdf, double xi):
     cdef Py_ssize_t mn = 0
     cdef Py_ssize_t mx = n_tot
     cdef Py_ssize_t mi
+    if xi <= mass_cdf[0, 1]:
+        return mass_cdf[0, 0]
     while mx - mn > 1:
         mi = int(mn * 0.5 + mx * 0.5)
         if mass_cdf[mi, 1] < xi:
             mn = mi
         else:
             mx = mi
-    return mass_cdf[mi, 0]
+    return (xi - mass_cdf[mn,1])/(mass_cdf[mx,1]-mass_cdf[mn,1])*(mass_cdf[mx,0]-mass_cdf[mn,0])+mass_cdf[mn,0]
 
 
 # Calculates the relaxation time scale.
