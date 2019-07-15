@@ -66,8 +66,9 @@ def func_cdf_inv(frac, rho, a, b, c):
         else:
             rmin = rmid
     rmid = alpha*rmax + (1.-alpha)*rmin
-    return np.exp(rmin)
+    return np.exp(rmid)
     
+
 
 def func_cdf_pw(x, rho, a, b, rc):
     rc = np.exp(rc)
@@ -79,6 +80,20 @@ def func_cdf_pw(x, rho, a, b, rc):
     #print(aa, bb)
     hgf = x**(3.-a) / (3.-a) * special.hyp2f1(1, ab, ab+1, -x**(b-a))
     return np.log(4*np.pi*rho*rc**3 * hgf)
+
+def func_cdf_pw_inv(frac, rho, a, b, c):
+    m_h = func_cdf_pw(np.log(1e8), rho, a, b, c) + np.log(frac)
+    rmin = np.log(1e-10)
+    rmax = np.log(1e10)
+    alpha = 0.5
+    while rmax - rmin > 1e-6:
+        rmid = alpha*rmax + (1.-alpha)*rmin
+        if func_cdf_pw(rmid, rho, a, b, c)>m_h:
+            rmax = rmid
+        else:
+            rmin = rmid
+    rmid = alpha*rmax + (1.-alpha)*rmin
+    return np.exp(rmid)
 
 def cdf_sample(r_m):
     rmin = r_m[3,0] *1.01
@@ -253,7 +268,7 @@ def fit_cdf_scipy(raw_cdf, r_h, m_h, r_max, m_tot):
     fits = np.array(func_cdf(r, *params))
     chi_sq_test = stats.chisquare(m, f_exp=fits)
     fits = np.exp(fits)
-    print(fun_con(params), fun_con_tot(params), chi_sq_test)
+    print(fun_con(params), fun_con_tot(params))
     
     if res.success == False or chi_sq_test[1]<0.05 or fun_con(params)>1e-5 or fun_con_tot(params)>1e-5:
         params[2] = -1.0
@@ -261,6 +276,114 @@ def fit_cdf_scipy(raw_cdf, r_h, m_h, r_max, m_tot):
     params[1] = np.abs(params[1])
     params[-1] = np.exp(params[-1])
     r_h_fit = func_cdf_inv(0.5, np.log(params[0]), params[1], params[2], np.log(params[3]))
-    if params[-1] > r_max or r_h_fit > r_max:
-        params[2] = -1.0
+#    if params[-1] > r_max or r_h_fit > r_max:
+#        params[2] = -1.0
+#    if np.log10(r_h_fit/r_h) > 0.1:
+#        params[2] = -1.0
+    return np.array(list(zip(np.exp(r), fits))), params
+
+
+def fit_cdf_pw_chi2(x, r, m):
+    model = func_cdf_pw(r, *x)
+    chi_sq = sum((model - m)**2)
+    return chi_sq
+
+def fit_cdf_pw_scipy(raw_cdf, r_h, m_h, r_max, m_tot):
+    r = np.log(raw_cdf[:,0])
+    m = np.log(raw_cdf[:,1])
+    fun_con = lambda x: func_cdf_pw(np.log(r_h), *x) - np.log(m_h)
+    fun_con_tot = lambda x: func_cdf_pw(np.log(r_max), *x) - np.log(m_tot)
+    delta = 0
+    cons = (#{'type': 'eq', 'fun': fun_con},
+            #{'type': 'eq', 'fun': fun_con_tot},
+        {'type': 'ineq', 'fun': lambda x: x[1]-delta},
+        {'type': 'ineq', 'fun': lambda x: 3.0-x[1]-delta},
+        {'type': 'ineq', 'fun': lambda x: x[2]-3.0-delta})
+    res = optimize.minimize(fit_cdf_pw_chi2, (12, 1, 4, -1), args=(r, m), method='SLSQP', constraints=cons)
+    params = res.x
+    fits = np.array(func_cdf_pw(r, *params))
+    chi_sq_test = stats.chisquare(m, f_exp=fits)
+    fits = np.exp(fits)
+    print(fun_con(params), fun_con_tot(params))
+    
+#    if res.success == False or chi_sq_test[1]<0.05 or fun_con(params)>1e-5 or fun_con_tot(params)>1e-5:
+#        params[2] = -1.0
+    params[0] = np.exp(params[0])
+    params[1] = np.abs(params[1])
+    params[-1] = np.exp(params[-1])
+    r_h_fit = func_cdf_pw_inv(0.5, np.log(params[0]), params[1], params[2], np.log(params[3]))
+#    if params[-1] > r_max or r_h_fit > r_max:
+#        params[2] = -1.0
+#    if np.log10(r_h_fit/r_h) > 0.1:
+#        params[2] = -1.0
+    return np.array(list(zip(np.exp(r), fits))), params
+
+
+
+def fit_cdf_general_scipy(raw_cdf, r_h, m_h, r_max, m_tot, model, a_con, b_con, rc_con):
+    r = np.log(raw_cdf[:,0])
+    m = np.log(raw_cdf[:,1])
+    delta = 0
+    if model=='double_power_free':
+        fun_con = lambda x: func_cdf(np.log(r_h), *x) - np.log(m_h)
+        fun_con_tot = lambda x: func_cdf(np.log(r_max), *x) - np.log(m_tot)
+        cons = ({'type': 'eq', 'fun': fun_con},
+                {'type': 'eq', 'fun': fun_con_tot},
+                {'type': 'ineq', 'fun': lambda x: x[1]-delta},
+                {'type': 'ineq', 'fun': lambda x: 3.0-x[1]-delta},
+                {'type': 'ineq', 'fun': lambda x: x[2]-3.0-delta})
+    elif model=='double_power_a_fixed':
+        fun_con = lambda x: func_cdf(np.log(r_h), *x) - np.log(m_h)
+        fun_con_tot = lambda x: func_cdf(np.log(r_max), *x) - np.log(m_tot)
+        cons = ({'type': 'eq', 'fun': fun_con},
+#                {'type': 'eq', 'fun': fun_con_tot},
+                {'type': 'eq', 'fun': lambda x: x[1]-a_con-delta},
+                {'type': 'ineq', 'fun': lambda x: x[2]-3.0-delta})
+    elif model=='double_power_a_b_fixed':
+        fun_con = lambda x: func_cdf(np.log(r_h), *x) - np.log(m_h)
+        fun_con_tot = lambda x: func_cdf(np.log(r_max), *x) - np.log(m_tot)
+        cons = ({'type': 'eq', 'fun': fun_con},
+#                {'type': 'eq', 'fun': fun_con_tot},
+                {'type': 'eq', 'fun': lambda x: x[1]-a_con-delta},
+                {'type': 'eq', 'fun': lambda x: x[2]-b_con-delta})
+    elif model=='single_power':
+        fun_con = lambda x: func_cdf(np.log(r_h), *x) - np.log(m_h)
+        fun_con_tot = lambda x: func_cdf(np.log(r_max), *x) - np.log(m_tot)
+        cons = ({'type': 'eq', 'fun': fun_con},
+                {'type': 'eq', 'fun': lambda x: x[1]-x[2]-delta},
+                {'type': 'eq', 'fun': lambda x: x[3]-np.log(rc_con)-delta})
+    elif model=='piecewise':
+        fun_con = lambda x: func_cdf_pw(np.log(r_h), *x) - np.log(m_h)
+        fun_con_tot = lambda x: func_cdf_pw(np.log(r_max), *x) - np.log(m_tot)
+        cons = ({'type': 'eq', 'fun': fun_con},
+                {'type': 'eq', 'fun': fun_con_tot},
+                {'type': 'ineq', 'fun': lambda x: x[1]-delta},
+                {'type': 'ineq', 'fun': lambda x: 3.0-x[1]-delta},
+                {'type': 'ineq', 'fun': lambda x: x[2]-3.0-delta})
+    
+    if model=='piecewise':
+        model_cdf = func_cdf_pw
+        res = optimize.minimize(fit_cdf_pw_chi2, (12, 1, 4, -1), args=(r, m), method='SLSQP', constraints=cons)
+    else:
+        model_cdf = func_cdf
+        res = optimize.minimize(fit_cdf_chi2, (12, 1, 4, -1), args=(r, m), method='SLSQP', constraints=cons)
+    params = res.x
+    fits = np.array(model_cdf(r, *params))
+    #chi_sq_test = stats.chisquare(m, f_exp=fits)
+    fits = np.exp(fits)
+    #print(fun_con(params), fun_con_tot(params))
+    if model == 'double_power_free' or model == 'piecewise':
+        if res.success == False or fun_con(params)>1e-5 or fun_con_tot(params)>1e-5:
+            params[2] = -1.0
+    else:
+        if res.success == False or fun_con(params)>1e-5:
+            params[2] = -1.0
+    params[0] = np.exp(params[0])
+    params[1] = np.abs(params[1])
+    params[-1] = np.exp(params[-1])
+    r_h_fit = func_cdf_inv(0.5, np.log(params[0]), params[1], params[2], np.log(params[3]))
+#    if params[-1] > r_max or r_h_fit > r_max:
+#        params[2] = -1.0
+#    if np.log10(r_h_fit/r_h) > 0.1:
+#        params[2] = -1.0
     return np.array(list(zip(np.exp(r), fits))), params
