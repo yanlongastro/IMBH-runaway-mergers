@@ -33,34 +33,30 @@ import mc_cy
 import argparse
 parser = argparse.ArgumentParser(description='Optional app description')
 parser.add_argument('--savfig', action='store_true', help='Save the figures of evulution')
-parser.add_argument('--pw', action='store_true', help='Use the piecewise density model')
+#parser.add_argument('--pw', action='store_true', help='Use the piecewise density model')
 args = parser.parse_args()
 savfig = args.savfig
-pw = args.pw
+#pw = args.pw
 
 
 t0 = time.time()
 cwd = os.getcwd()
 pwd = os.path.dirname(os.getcwd())
-path = os.path.join(pwd, 'clusters-density')
+path = os.path.join(pwd, 'clusters-density-2')
 
-if pw==True:
-    files = glob.glob1(path, '*-info-pw.hdf5')
-    minusn = 13
-else:
-    files = glob.glob1(path, '*-info.hdf5')
-    minusn = 10
-#filename = os.path.join(path, sys.argv[1])
-#f = h5py.File(filename, 'r')
-#n_cls = len(f.keys())
-#print("Read file:", time.time() - t0)
-#data = np.zeros((n_cls, 11))
+#if pw==True:
+#    files = glob.glob1(path, '*-info-pw.hdf5')
+#    minusn = 13
+#else:
+files = glob.glob1(path, '*-raw.hdf5')
+minusn = 9
+
 m_s = 0.376176
 
-hdf = h5py.File('mc-data-all'+('-pw' if pw else '')+'.hdf5', 'w')
+hdf = h5py.File('mc-data-all.hdf5', 'w')
 cloud=[]
 try:
-    os.remove('data'+('-pw' if pw else '')+'.txt')
+    os.remove('data.txt')
 except:
     pass
 
@@ -79,9 +75,9 @@ for fs in files:
     for i in range(n_cls):
         clst = list(f.keys())[i]
         print('\n', clst, '\n')
-        mass_cls = f[clst]['params'][-2]
-        if np.isfinite(f[clst]['params']).all()==False:
-            continue
+        mass_cls = f[clst]['m_tot'][()]
+#        if np.isfinite(f[clst]['params']).all()==False:
+#            continue
         mass_cdf = np.array(f[clst]['raw_cdf'])
         #mass_cdf = np.array(f[clst]['mc_cdf'])
         mass_cdf = np.transpose(mass_cdf)
@@ -91,11 +87,11 @@ for fs in files:
         mass_cdf = np.transpose(mass_cdf)
         star_catalog = mc_cy.sample_partial(mass_cls, mass_cdf)
         #r_h = f[clst]['params0'][-1]/1.0e3  #pc to kpc
-        r_h = f[clst]['params'][-1]/1.0e3  #pc to kpc
+        r_h = f[clst]['r_h'][()]/1.0e3  #pc to kpc
         t_rlx = mc_cy.t_rlx_py(r_h, mass_cls/2.0, m_s)
-        r_c = f[clst]['params'][3]/1.0e3
-        m_rc = f[clst]['params'][-3]
-        t_dfc = 3.3 * mc_cy.t_rlx_py(r_c, m_rc, 100)* np.log(0.1* m_rc/100) / np.log(0.1* mass_cls/2./m_s)
+        #r_c = f[clst]['params'][3]/1.0e3
+        #m_rc = f[clst]['params'][-3]
+        #t_dfc = 3.3 * mc_cy.t_rlx_py(r_c, m_rc, 100)* np.log(0.1* m_rc/100) / np.log(0.1* mass_cls/2./m_s)
         print("Sample:", time.time() - t0)
         
         m_cut_l = 0.5
@@ -156,9 +152,9 @@ for fs in files:
             ax1.loglog(times, mass_growth, label='Data')
             ax1.loglog(times_, np.exp(y), label='Fit')
             ax1.loglog(np.repeat(t_rlx, len(y)), np.exp(y), '--', label=r'$t_{\rm rlx} = %f {\rm Myr}$'%(t_rlx))
-            ax1.loglog(np.repeat(t_dfc, len(y)), np.exp(y), ':', label=r'$t_{\rm df,c} = %f {\rm Myr}$'%(t_dfc))
+            #ax1.loglog(np.repeat(t_dfc, len(y)), np.exp(y), ':', label=r'$t_{\rm df,c} = %f {\rm Myr}$'%(t_dfc))
             ax1.loglog(times, np.repeat(mass_cls, len(times)), '-.', label=r'$M_{\rm cls} = %f M_{\odot}$'%(mass_cls))
-            ax1.loglog(times, np.repeat(m_rc, len(times)), '-.', label=r'$M(r_{\rm c}) = %f M_{\odot}$'%(m_rc))
+            #ax1.loglog(times, np.repeat(m_rc, len(times)), '-.', label=r'$M(r_{\rm c}) = %f M_{\odot}$'%(m_rc))
             ax1.set_xlim(0.1, 1e4)
             ax1.set_xlabel(r"$t[\mathrm{Myr}]$")
             ax1.set_ylabel(r"$\mathcal{M}[M_{\odot}]$")
@@ -169,7 +165,7 @@ for fs in files:
             ax2.loglog(t_e, m_c_te/3.0e6, '*', label=r'$t_{\rm e}=%f {\rm Myr},~M_{\rm c}(t_{\rm e})=%f M_{\odot}$'%(t_e, m_c_te))
             ax2.loglog(t_e+3, m_c_te3/3.0e6, 'o', label=r'$M_{\rm c}(t_{\rm e}+3{\rm Myr})=%f M_{\odot}$'%(m_c_te3))
             ax2.loglog(np.repeat(t_rlx, len(y)), np.exp(y)/3.0e6, '--', label=r'$t_{\rm rlx} = %f {\rm Myr}$'%(t_rlx))
-            ax2.loglog(np.repeat(t_dfc, len(y)), np.exp(y)/3.0e6, ':', label=r'$t_{\rm df,c} = %f {\rm Myr}$'%(t_dfc))
+            #ax2.loglog(np.repeat(t_dfc, len(y)), np.exp(y)/3.0e6, ':', label=r'$t_{\rm df,c} = %f {\rm Myr}$'%(t_dfc))
             ax2.set_xlim(0.1, 1e4)
             ax2.set_ylim(1e-6)
             ax2.set_xlabel(r"$t[\mathrm{Myr}]$")
@@ -179,35 +175,37 @@ for fs in files:
             pt = fs[:-minusn]+"-"+clst
             pt = pt.replace('_', '-')
             fig.suptitle(pt)
-            plt.savefig(os.path.join(os.getcwd(), 'plots', pt+'-mc'+('-pw' if pw else '')+'.pdf'))
+            plt.savefig(os.path.join(os.getcwd(), 'plots', pt+'-mc'+'.pdf'))
             plt.close()
             
         cloud.append(fs[:-minusn])
         
         
-        data[i][0] = list(f[clst]['params0'])[0]
-        data[i][1] = list(f[clst]['params0'])[-1]
-        data[i][2:9] = list(f[clst]['params'])
+        #data[i][0] = list(f[clst]['params0'])[0]
+        #data[i][1] = list(f[clst]['params0'])[-1]
+        #data[i][2:9] = list(f[clst]['params'])
         data[i][9] = t_e
         data[i][10] = m_c_te
         data[i][11] = m_c_te3
         data[i][12] = t_rlx
-        data[i][13] = t_dfc
+        #data[i][13] = t_dfc
         
         hdf_cls = hdf_cloud.create_group(clst)
-        hdf_cls.create_dataset('mc_data', data = data[i])
-        
-        #hdf_cls.create_dataset('mass_growth', data=np.array(list(zip(times_, mass_growth_))))
-        #hdf_cls.create_dataset('mass_growth_rate', data=np.array(list(zip(times_[:-1], mass_growth_rate))))
+        hdf_cls.create_dataset('t_e', data = t_e)
+        hdf_cls.create_dataset('m_c_te', data = m_c_te)
+        hdf_cls.create_dataset('m_c_te3', data = m_c_te3)
+        hdf_cls.create_dataset('t_rlx', data = t_rlx)
+        hdf_cls.create_dataset('mass_growth', data=np.array(list(zip(times_, mass_growth_))))
+        hdf_cls.create_dataset('mass_growth_rate', data=np.array(list(zip(times_[:-1], mass_growth_rate))))
         print("Done:", time.time() - t0)
     f.close()
-    dt=open('data'+('-pw' if pw else '')+'.txt','ab')
+    dt=open('data.txt','ab')
     np.savetxt(dt, data)
     dt.close()
 hdf.close()
-data = np.loadtxt('data'+('-pw' if pw else '')+'.txt')
+data = np.loadtxt('data.txt')
 names = ['mcls', 'rh', 'rhoc', 'eta1', 'eta2', 'rc', 'mrc-fit', 'mcls-fit', 'rh-fit', 'te', 'mte', 'mte3', 't-rlx', 't-dfc']
 df = pd.DataFrame(data, columns=names)
 df['cloud'] = cloud
-df.to_csv('dataframe'+('-pw' if pw else '')+'.csv', encoding='utf-8')
+df.to_csv('dataframe.csv', encoding='utf-8')
     
