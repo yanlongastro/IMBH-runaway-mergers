@@ -21,6 +21,9 @@ ind_imf = 2.3
 def pdf(x, a, b):
     return x**(-a) *(1+x)**(a-b)
 
+def pdf_pw(x, a, b):
+    return 1/(x**a + x**b)
+
 def cdf(x, a, b):
     aa = 3-a
     bb = 1+a-b
@@ -29,9 +32,20 @@ def cdf(x, a, b):
     #print(beta)
     return beta
 
+def cdf_pw(x, a, b):
+    ab = (a-3.) /(a-b)
+    #print(aa, bb)
+    hgf = x**(3.-a) / (3.-a) * special.hyp2f1(1, ab, ab+1, -x**(b-a))
+    #print(beta)
+    return hgf
+
 def cdf_phy(x, rho, a, b, rc):
     x = x/rc
     return 4*np.pi*rho*rc**3 * cdf(x, a, b)
+
+def cdf_pw_phy(x, rho, a, b, rc):
+    x = x/rc
+    return 4*np.pi*rho*rc**3 * cdf_pw(x, a, b)
 
 def cdf_inv(m, a, b):
     beta = m
@@ -78,6 +92,16 @@ def tdfc_phy(rho, a, b, rc):
     m_mean = 0.376176
     mtot = cdf_phy(rc*1e10, rho, a, b, rc)
     mrc = cdf_phy(rc, rho, a, b, rc)
+    lnlamb = np.log(0.1 * mtot/2/m_mean)
+    tdfc = 3.3/8.0/lnlamb *np.sqrt(rc**3 /G/mrc) *mrc/m_max
+    return tdfc
+
+def tdfc_pw_phy(rho, a, b, rc):
+    G = 4*np.pi**2 / 206265**3
+    m_max = 100
+    m_mean = 0.376176
+    mtot = cdf_pw_phy(rc*1e10, rho, a, b, rc)
+    mrc = cdf_pw_phy(rc, rho, a, b, rc)
     lnlamb = np.log(0.1 * mtot/2/m_mean)
     tdfc = 3.3/8.0/lnlamb *np.sqrt(rc**3 /G/mrc) *mrc/m_max
     return tdfc
