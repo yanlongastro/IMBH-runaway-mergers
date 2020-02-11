@@ -1,4 +1,4 @@
-# Seed BH from run-away growth of star clusters
+# IMBH from runaway mergers in star clusters.
 
 Files
 - raw-all.py: calculate the raw density profiles.
