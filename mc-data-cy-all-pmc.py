@@ -15,7 +15,6 @@ import h5py
 from scipy.interpolate import interp1d
 from scipy import signal
 import operator
-import pandas  as pd
 
 import matplotlib.pyplot as plt
 import matplotlib as mpl
@@ -54,6 +53,8 @@ minusn = 9
 
 m_s = 0.376176
 
+npart_max = 700
+
 hdf = h5py.File('mc-data-all.hdf5', 'a')
 info = h5py.File('../cls-info-all.hdf5', 'r')
 cloud=[]
@@ -78,13 +79,16 @@ for fs in files:
     else:
         hdf_cloud = hdf[fs[:-minusn]]
     info_cloud = info[fs[:-minusn]]
-    for i in range(37, n_cls):
+    for i in range(0, n_cls):
         clst = list(f.keys())[i]
         print('\n', clst, '\n')
         mass_cls = f[clst]['m_tot'][()]
 #        if np.isfinite(f[clst]['params']).all()==False:
 #            continue
         mass_cdf = np.array(f[clst]['raw_cdf'])
+        if info_cloud[clst]['n_particle'][()] > npart_max:
+            print('To massive, skip at this time...')
+            continue
         if 'double_power_cons' in list(info_cloud[clst].keys()):
             params = info_cloud[clst]['double_power_cons']['params'][()]
             print(params)
@@ -124,6 +128,8 @@ for fs in files:
         
         plt.loglog(times, mass_growth)
         
+        if np.isnan(mass_growth).any()==True or (mass_growth<=0).any()==True:
+            continue
     
         x = np.log(times)
         y = np.log(mass_growth)
@@ -158,22 +164,29 @@ for fs in files:
         t_e = np.exp(m)
         m_c_te = np.exp(intp_mg(m))*3e6
         m_c_te3 = np.exp(intp_mg(np.log(np.exp(m)+3)))*3e6
-        print("t_e/Myr:", t_e)
-        print("M_c(t_e)/M_sun", m_c_te)
-        print("M_c(t_e+3)/M_sun", m_c_te3)
-        
+
+        # check if we need to create new sets in hdf5 file
         if clst not in list(hdf_cloud.keys()):
             hdf_cls = hdf_cloud.create_group(clst)
+            if 'mass_growth_rate' not in list(hdf_cloud[clst].keys()):
+                print("t_e/Myr:", t_e)
+                print("M_c(t_e)/M_sun", m_c_te)
+                print("M_c(t_e+3)/M_sun", m_c_te3)
+                hdf_cls.create_dataset('t_e', data = t_e)
+                hdf_cls.create_dataset('m_c_te', data = m_c_te)
+                hdf_cls.create_dataset('m_c_te3', data = m_c_te3)
+                
+                hdf_cls.create_dataset('t_rlx', data = t_rlx)
+                hdf_cls.create_dataset('mass_growth', data=np.array(list(zip(times_, mass_growth_))))
+                hdf_cls.create_dataset('mass_growth_rate', data=np.array(list(zip(times_[:-1], mass_growth_rate))))
         else:
+            hdf_cls = hdf_cloud[clst]
+            print('No PMC condition is already done.')
+        if 'mass_growth_rate_pmc' not in list(hdf_cls.keys()):
+            pass
+        else:
+            print('PMC condition is already done.')
             continue
-        hdf_cls.create_dataset('t_e', data = t_e)
-        hdf_cls.create_dataset('m_c_te', data = m_c_te)
-        hdf_cls.create_dataset('m_c_te3', data = m_c_te3)
-        
-        hdf_cls.create_dataset('t_rlx', data = t_rlx)
-        hdf_cls.create_dataset('mass_growth', data=np.array(list(zip(times_, mass_growth_))))
-        hdf_cls.create_dataset('mass_growth_rate', data=np.array(list(zip(times_[:-1], mass_growth_rate))))
-        
         
         star_catalog_sorted = sorted(star_catalog, key = operator.itemgetter(2))
         star_catalog_sorted = np.array(star_catalog_sorted)
@@ -184,6 +197,9 @@ for fs in files:
         #mass_growth = mc_cy.evolve(star_catalog_sorted, times)
         #mass_growth = np.array(mass_growth)
         tm = mc_cy_pmc.evolve(star_catalog_sorted, times[-1]*1e6, *params)
+        # check if the PMC evolution fails
+        if len(tm)<10 or np.isnan(tm).any()==True or (tm<0).any()==True:
+            continue
         tm_fit_log = interp1d(np.log10(tm[:,0]/1e6), np.log10(tm[:,1]), fill_value="extrapolate" )
         tm_fit = lambda x: 10**tm_fit_log(np.log10(x))
         mass_growth = tm_fit(times)
@@ -272,10 +288,10 @@ for fs in files:
         #data[i][0] = list(f[clst]['params0'])[0]
         #data[i][1] = list(f[clst]['params0'])[-1]
         #data[i][2:9] = list(f[clst]['params'])
-        data[i][9] = t_e
-        data[i][10] = m_c_te
-        data[i][11] = m_c_te3
-        data[i][12] = t_rlx
+        #data[i][9] = t_e
+        #data[i][10] = m_c_te
+        #data[i][11] = m_c_te3
+        #data[i][12] = t_rlx
         #data[i][13] = t_dfc
         
 
