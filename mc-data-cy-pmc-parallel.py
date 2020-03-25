@@ -8,6 +8,8 @@ MPI task ref:
     https://github.com/jbornschein/mpi4py-examples/blob/master/09-task-pull.py
 install h5py with mpi: 
     conda install -c conda-forge "h5py>=2.10=mpi*"
+debug runs:
+    mpirun --use-hwthread-cpus -np 4 xterm -e python <script>
 
 @author: Yanlong
 """
@@ -47,7 +49,7 @@ num_workers = size-1
 
 t0 = time.time()
 m_s = 0.376176
-npart_max = 700
+npart_max = 400
 
 
 hdf = h5py.File('mc-data-all-parallel.hdf5', 'a', driver='mpio', comm=MPI.COMM_WORLD)
@@ -86,10 +88,15 @@ if rank == 0:
                 comm.send(None, dest=source, tag=tags.EXIT)
         elif tag == tags.DONE:
             results = data
+            print("MC simulation from worker %d"%source, end=' ')
             if results==1:
-                print("MC simulation succeeded")
+                print("succeeded")
             elif results==-1:
-                print("MC simulation failed")
+                print("failed")
+            elif results==2:
+                print("done before")
+            elif results==0:
+                print("skipped")
         elif tag == tags.EXIT:
             print("Worker %d exited." % source)
             closed_workers += 1
@@ -109,10 +116,17 @@ else:
             # MC simulation
             hdf_cls = hdf[cloud_clst]
             print('\n', 'Rank %d/%d: %s'%(rank, num_workers, cloud_clst))
-            if hdf[cloud_clst]['no_PMC'][()] == True:
-                print('No_PMC already done.')
+            if hdf[cloud_clst]['PMC'][()] == True:
+                print('PMC already done.')
+                comm.send(2, dest=0, tag=tags.DONE)
+                continue
+            n_particle = hdf[cloud_clst]['n_particle'][()] 
+            if n_particle > npart_max:
+                print('Too massive, skip for now...')
+                hdf_cls['PMC'][...] = False
                 comm.send(0, dest=0, tag=tags.DONE)
                 continue
+            print("Particle numbers: %d"%n_particle)
             mass_cls = hdf[cloud_clst]['m_tot'][()]
             r_h = hdf[cloud_clst]['r_h'][()]
             mass_cdf = hdf[cloud_clst]['raw_cdf'][()]
@@ -120,7 +134,7 @@ else:
                 params = hdf[cloud_clst]['params'][()]
             else:
                 print('MJ not fitted for the cluster.')
-                hdf_cls['no_PMC'][...] = True
+                hdf_cls['PMC'][...] = True
                 comm.send(-1, dest=0, tag=tags.DONE)
                 continue
 
@@ -141,15 +155,24 @@ else:
 
             n_step = 10000
             times = np.logspace(-1, 5, n_step)
-            mass_growth = mc_cy.evolve(star_catalog_sorted, times)
-            mass_growth = np.array(mass_growth)
-            print("Evolve:", time.time() - t0)
-            if np.isnan(mass_growth).any()==True or (mass_growth<=0).any()==True:
-                print("Nan occured in mass_growth")
-                hdf_cls['no_PMC'][...] = True
+            tm = mc_cy_pmc.evolve(star_catalog_sorted, times[-1]*1e6, *params)
+            print("Evolve (PMC):", time.time() - t0)
+            if len(tm)<10 or np.isnan(tm).any()==True or (tm<0).any()==True:
+                print("PMC evolve failed")
+                hdf_cls['PMC'][...] = True
                 comm.send(-1, dest=0, tag=tags.DONE)
                 continue
             else:
+                tm_fit_log = interp1d(np.log10(tm[:,0]/1e6), np.log10(tm[:,1]), fill_value="extrapolate" )
+                tm_fit = lambda x: 10**tm_fit_log(np.log10(x))
+                mass_growth = tm_fit(times)
+
+                if np.isnan(mass_growth).any()==True or (mass_growth<=0).any()==True:
+                    print("Nan occured in mass_growth")
+                    hdf_cls['no_PMC'][...] = True
+                    comm.send(-1, dest=0, tag=tags.DONE)
+                    continue
+
                 x = np.log(times)
                 y = np.log(mass_growth)
                 x = x[np.isfinite(y)]
@@ -173,23 +196,22 @@ else:
                         h = m
                     else:
                         l = m
-                t_e = np.exp(m)
-                m_c_te = np.exp(intp_mg(m))*3e6
-                m_c_te3 = np.exp(intp_mg(np.log(np.exp(m)+3)))*3e6
+                t_e_pmc = np.exp(m)
+                m_c_te_pmc = np.exp(intp_mg(m))*3e6
+                m_c_te3_pmc = np.exp(intp_mg(np.log(np.exp(m)+3)))*3e6
 
                 # write data
                 
-                print("t_e/Myr:", t_e)
-                print("M_c(t_e)/M_sun", m_c_te)
-                print("M_c(t_e+3)/M_sun", m_c_te3)
+                print("t_e/Myr:", t_e_pmc)
+                print("M_c(t_e)/M_sun", m_c_te_pmc)
+                print("M_c(t_e+3)/M_sun", m_c_te3_pmc)
                 print('Time used: %.2f s'%(time.time()-t0))
                 sys.stdout.flush()
 
-                hdf_cls['t_e'][...] = t_e
-                hdf_cls['m_c_te'][...] = m_c_te
-                hdf_cls['m_c_te3'][...] = m_c_te3
-                hdf_cls['t_rlx'][...] = t_rlx
-                hdf_cls['no_PMC'][...] = True
+                hdf_cls['t_e_pmc'][...] = t_e_pmc
+                hdf_cls['m_c_te_pmc'][...] = m_c_te_pmc
+                hdf_cls['m_c_te3_pmc'][...] = m_c_te3_pmc
+                hdf_cls['PMC'][...] = True
 
                 comm.send(1, dest=0, tag=tags.DONE)
 
