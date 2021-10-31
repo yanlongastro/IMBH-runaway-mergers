@@ -6,7 +6,8 @@ Features:
 - Written in python, accelerated with `mpi4py` and `Cython`.
 
 Reference
-`
+
+```
 @ARTICLE{ShiGrudic2021,
        author = {{Shi}, Yanlong and {Grudi{\'c}}, Michael Y. and {Hopkins}, Philip F.},
         title = "{The mass budget for intermediate-mass black holes in dense star clusters}",
@@ -24,4 +25,4 @@ archivePrefix = {arXiv},
        adsurl = {https://ui.adsabs.harvard.edu/abs/2021MNRAS.505.2753S},
       adsnote = {Provided by the SAO/NASA Astrophysics Data System}
 }
-`
+```
