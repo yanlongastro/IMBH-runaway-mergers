@@ -1,5 +1,7 @@
 # IMBH from runaway mergers in star clusters.
 
+[![DOI:10.1093/mnras/stab1470](http://img.shields.io/badge/DOI-10.1093/mnras/stab1470-B31B1B.svg)](https://doi.org/10.1093/mnras/stab1470)
+
 Features:
 - Monte Carlo simulation of YMC runaway mergers based on Grudic et al. 2018.
 - Included point mass correction, and provided analytical or numerical solutions.
