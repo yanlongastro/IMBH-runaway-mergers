@@ -7,7 +7,7 @@ Features:
 - Included point mass correction, and provided analytical or numerical solutions.
 - Written in python, accelerated with `mpi4py` and `Cython`.
 
-Reference
+Reference:
 
 ```
 @ARTICLE{ShiGrudic2021,
